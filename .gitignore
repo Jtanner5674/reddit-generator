@@ -1,0 +1,14 @@
+# Ignore myfolder
+finals/
+backgrounds/
+
+# Ignore all .log files
+*.log
+*.mp4
+*.mp3
+
+# Ignore all node_modules directories
+node_modules/
+
+# Ignore specific file
+secret_config.json
