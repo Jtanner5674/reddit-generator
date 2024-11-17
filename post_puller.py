@@ -30,7 +30,7 @@ def fetch_reddit_post():
     while True:
         random_post = random.choice(list(subreddit.hot()))
         
-        if len(random_post.selftext) > 1000:  # Minimum length
+        if len(random_post.selftext) > 100:  # Minimum length
             break
 
     # Print post details

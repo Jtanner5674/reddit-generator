@@ -1,19 +1,19 @@
 from pydub import AudioSegment
-import whisper
 import random
 import os
+import textwrap
 from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
+import moviepy.editor as mp
+from subtitler import generate_and_attach_subtitles  # Import the function we created
 
-def generate_short(mp3_file, video_folder="backgrounds", output_file=None, overlay_audio=True):
+os.environ["IMAGEMAGICK_BINARY"] = r"C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
+
+
+def generate_short(mp3_file, video_folder="backgrounds/temp", output_file=None, overlay_audio=True):
     # Convert MP3 to WAV using Pydub
     audio = AudioSegment.from_file(mp3_file)
     wav_file = mp3_file.replace(".mp3", ".wav")
     audio.export(wav_file, format="wav")
-
-    # Load the WAV file for Whisper transcription
-    model = whisper.load_model("small")  # Use 'small' model for speed/accuracy balance
-    result = model.transcribe(wav_file)
-    transcription = result['text']
 
     # Load MP3 and get its duration
     audio_duration = len(audio) / 1000  # Convert to seconds
@@ -22,7 +22,7 @@ def generate_short(mp3_file, video_folder="backgrounds", output_file=None, overl
     if output_file is None:
         audio_name = os.path.splitext(os.path.basename(mp3_file))[0]
         output_folder = "finals"
-        os.makedirs(output_folder, exist_ok=True)  # Create folder if it doesn't exist
+        os.makedirs(output_folder, exist_ok=True)
         output_file = os.path.join(output_folder, f"{audio_name}_short.mp4")
 
     # Get a list of all video files in the folder
@@ -43,29 +43,26 @@ def generate_short(mp3_file, video_folder="backgrounds", output_file=None, overl
     video_clip = video_clip.resize(width=1080)
     video_clip = video_clip.crop(width=1080, height=1920, x_center=video_clip.w / 2, y_center=video_clip.h / 2)
 
-    # Split transcription into caption chunks
-    caption_chunks = [transcription[i:i + 30] for i in range(0, len(transcription), 30)]
-    chunk_duration = audio_duration / len(caption_chunks)
-    
-    # Create caption clips for each chunk
-    caption_clips = []
-    for i, chunk in enumerate(caption_chunks):
-        caption = TextClip(chunk, fontsize=60, color='white', font='Arial', stroke_color='black', stroke_width=2)
-        caption = caption.set_duration(chunk_duration).set_position(("center", 0.7 * video_clip.h)).set_start(i * chunk_duration)
-        caption_clips.append(caption)
+    # Generate subtitles and attach them to the video
+    temp_output_file = "temp_with_subtitles.mp4"
+    try:
+        generate_and_attach_subtitles(mp3_file, temp_output_file)  # Using our custom function
+        temp_video_clip = VideoFileClip(temp_output_file)
+    except Exception as e:
+        print(f"Error generating subtitles: {e}")
+        return
 
     # Overlay audio if specified
     if overlay_audio:
         audio_clip = AudioFileClip(mp3_file)
-        video_clip = video_clip.set_audio(audio_clip)
+        temp_video_clip = temp_video_clip.set_audio(audio_clip)
 
-    # Combine video and captions
-    final_clip = CompositeVideoClip([video_clip] + caption_clips)
-    
     # Write the final video
-    final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
+    temp_video_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
+    print(f"Final video saved to {output_file}")
 
-# Usage example
-mp3_file = "your_audio.mp3"
-video_folder = "backgrounds"
-generate_short(mp3_file, video_folder)
+    # Cleanup temporary files
+    if os.path.exists(temp_output_file):
+        os.remove(temp_output_file)
+    if os.path.exists(wav_file):
+        os.remove(wav_file)
